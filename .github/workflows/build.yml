@@ -40,6 +40,7 @@ jobs:
       # Build the module
       - name: Build
         env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.google-auth.outputs.credentials_file }}
           MAVEN_REPO_URL: ${{ secrets.MAVEN_REPO_URL }}
         working-directory: ${{ inputs.module }}
         run: |
