@@ -1,0 +1,65 @@
+name: Change Detection
+
+# This workflow is triggered by a push to the main branch
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # This job is responsible for detecting changes in the repository
+  # set respective outputs based on the changes detected
+  change-detection:
+    runs-on: ubuntu-latest
+    outputs:
+      baselib: ${{ steps.filter.outputs.baselib }}        # true if changes detected in baselib
+      service-a: ${{ steps.filter.outputs.service-a }}    # true if changes detected in service-a
+      service-b: ${{ steps.filter.outputs.service-b }}    # true if changes detected in service-b
+      changes: ${{ steps.filter.outputs.changes }}        # list of modules with changes
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dorny/paths-filter@v3
+      id: filter
+      with:
+        filters: |
+          baselib:
+            - 'baselib/**'
+          service-a:
+            - 'service-a/**'
+          service-b:
+            - 'service-b/**'
+  
+  # Workflow if changes detected in baselib
+  build-baselib:
+    needs: change-detection
+    if: ${{ needs.change-detection.outputs.baselib == 'true' }}
+    uses: ./.github/workflows/build.yml
+    with:
+      module: baselib
+    secrets: inherit
+  
+  # Workflow after baselib build is scuccessful
+  build-dependent-projects:
+    needs: build-baselib
+    if: ${{ needs.build-baselib.result == 'success' }}
+    strategy:
+      matrix:
+        target: [service-a, service-b]
+    uses: ./.github/workflows/build.yml
+    with:
+      module: ${{ matrix.target }}
+    secrets: inherit
+  
+  # Workflow if no changes detected in modules but not in baselib
+  # Uses matrix strategy to parallelly build only the modules with changes 
+  build-no-baselib-changes:
+    needs: change-detection
+    if: ${{ needs.change-detection.outputs.baselib == 'false' && needs.change-detection.outputs.changes != '[]' }}
+    strategy:
+      matrix:
+        target: ${{ needs.change-detection.outputs.changes }}
+    uses: ./.github/workflows/build.yml
+    with:
+      module: ${{ matrix.target }}
+    secrets: inherit
+    

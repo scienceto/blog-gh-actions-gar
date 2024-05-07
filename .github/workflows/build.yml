@@ -1,0 +1,47 @@
+name: Build
+
+# Set appropriate permissions so that google auth action can write to workflow run id-token 
+permissions:
+  contents: read
+  id-token: write
+
+# This workflow is triggered by the change-detection workflow
+# expects a module (project folder) input to be passed to the workflow
+on:
+  workflow_call:
+    inputs:
+      module:
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      # Set up Java
+      - name: Set up Java
+        uses: actions/setup-java@v2
+        with:
+          distribution: 'adopt'
+          java-version: '17'
+      
+      # Authenticate with Google Cloud using Workload Identity
+      - name: Google auth
+        id: google-auth
+        uses: google-github-actions/auth@v0.4.0
+        with:
+          workload_identity_provider: '${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}'
+          service_account: '${{ secrets.GOOGLE_SERVICE_ACCOUNT }}'
+          create_credentials_file: true
+      
+      # Build the module
+      - name: Build
+        env:
+          MAVEN_REPO_URL: ${{ secrets.MAVEN_REPO_URL }}
+        working-directory: ${{ inputs.module }}
+        run: |
+          echo "Building ${{ inputs.module }}"
+          mvn deploy
